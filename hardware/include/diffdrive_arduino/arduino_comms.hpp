@@ -1,8 +1,9 @@
 #ifndef DIFFDRIVE_ARDUINO_ARDUINO_COMMS_HPP
 #define DIFFDRIVE_ARDUINO_ARDUINO_COMMS_HPP
 
-// #include <cstring>
+#include <string>
 #include <sstream>
+#include <vector>
 // #include <cstdlib>
 #include <libserial/SerialPort.h>
 #include <iostream>
@@ -59,13 +60,13 @@ public:
     serial_conn_.FlushIOBuffers(); // Just in case
 
     // --- SRS ---
-    //serial_conn_.Write(msg_to_send);
-    serial_conn_.Write("AT+M,0.1,0.1\r\n");
+    serial_conn_.Write(msg_to_send);
+    serial_conn_.Write("AT+R\r\n");
 
     std::string response = "";
 
     // --- SRS ---
-    return response;
+    //return response;
 
 
     try
@@ -92,31 +93,55 @@ public:
     std::string response = send_msg("\r\n");
   }
 
-  void read_encoder_values(int &val_1, int &val_2)
+  void read_encoder_values(double &val_1, double &val_2)
   {
     // --- SRS ---
-    val_1 = val_1 + 1;
-    val_2 = val_2 + 1;
-    return;
+    //val_1 = val_1 + 1;
+    //val_2 = val_2 + 1;
+    //return;
 
-    std::string response = send_msg("e\r");
+    std::string response = send_msg("XO\r\n");
 
+    std::string delimiter = " ";
+    size_t start = 0;
+    size_t end = response.find_first_of(delimiter, start);
+    std::string token_1 = response.substr(start, end-start);
+    start = end + delimiter.length();
+    end = response.find_first_of(delimiter, start);
+    std::string token_2 = response.substr(start, end-start);
+    start = end + delimiter.length();
+    end = response.find_first_of(delimiter, start);
+    std::string token_3 = response.substr(start, end-start);
+    start = end + delimiter.length();
+    end = response.find_first_of(delimiter, start);
+    std::string token_4 = response.substr(start, end-start);
+    start = end + delimiter.length();
+    end = response.find_first_of(delimiter, start);
+    std::string token_5 = response.substr(start, end-start);
+
+    /*
     std::string delimiter = " ";
     size_t del_pos = response.find(delimiter);
     std::string token_1 = response.substr(0, del_pos);
-    std::string token_2 = response.substr(del_pos + delimiter.length());
 
-    val_1 = std::atoi(token_1.c_str());
-    val_2 = std::atoi(token_2.c_str());
+    std::string token_2 = response.substr(del_pos + delimiter.length());
+    std::string token_3 = response.substr(del_pos + delimiter.length());
+    std::string token_4 = response.substr(del_pos + delimiter.length());
+    std::string token_5 = response.substr(del_pos + delimiter.length());
+    */
+
+    val_1 = std::atof(token_2.c_str());
+    val_2 = std::atof(token_4.c_str());
   }
-  void set_motor_values(int val_1, int val_2)
+  void set_motor_values(float val_1, float val_2)
   {
     std::stringstream ss;
 
     // --- SRS ---
-    //ss << "m " << val_1 << " " << val_2 << "\r";
-    ss << "AT+M,0.1,0.1" << "\r\n";
-    send_msg(ss.str());
+    ss << "XM " << val_1 << " " << val_2 << " \r\n";
+    //send_msg(ss.str());
+    serial_conn_.Write(ss.str());
+
   }
 
   void set_pid_values(int k_p, int k_d, int k_i, int k_o)

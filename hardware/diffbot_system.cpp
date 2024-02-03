@@ -204,17 +204,23 @@ hardware_interface::return_type DiffDriveArduinoHardware::read(
     return hardware_interface::return_type::ERROR;
   }
 
-  comms_.read_encoder_values(wheel_l_.enc, wheel_r_.enc);
+  double l_pos;
+  double r_pos;
+  comms_.read_encoder_values(l_pos, r_pos);
+
+  RCLCPP_INFO(rclcpp::get_logger("DiffDriveArduinoHardware"), "read(%.2f %.2f)", l_pos, r_pos);
 
   double delta_seconds = period.seconds();
 
-  double pos_prev = wheel_l_.pos;
-  wheel_l_.pos = wheel_l_.calc_enc_angle();
-  wheel_l_.vel = (wheel_l_.pos - pos_prev) / delta_seconds;
+  //double pos_prev = wheel_l_.pos;
+  //wheel_l_.pos = wheel_l_.calc_enc_angle();
+  wheel_l_.vel = (l_pos - wheel_l_.pos) / delta_seconds;
+  wheel_l_.pos = l_pos;
 
-  pos_prev = wheel_r_.pos;
-  wheel_r_.pos = wheel_r_.calc_enc_angle();
-  wheel_r_.vel = (wheel_r_.pos - pos_prev) / delta_seconds;
+  //pos_prev = wheel_r_.pos;
+  //wheel_r_.pos = wheel_r_.calc_enc_angle();
+  wheel_r_.vel = (r_pos - wheel_r_.pos) / delta_seconds;
+  wheel_r_.pos = r_pos;
 
   return hardware_interface::return_type::OK;
 }
@@ -227,9 +233,30 @@ hardware_interface::return_type diffdrive_arduino ::DiffDriveArduinoHardware::wr
     return hardware_interface::return_type::ERROR;
   }
 
-  int motor_l_counts_per_loop = wheel_l_.cmd / wheel_l_.rads_per_count / cfg_.loop_rate;
-  int motor_r_counts_per_loop = wheel_r_.cmd / wheel_r_.rads_per_count / cfg_.loop_rate;
-  comms_.set_motor_values(motor_l_counts_per_loop, motor_r_counts_per_loop);
+  //int motor_l_counts_per_loop = wheel_l_.cmd / wheel_l_.rads_per_count / cfg_.loop_rate;
+  //int motor_r_counts_per_loop = wheel_r_.cmd / wheel_r_.rads_per_count / cfg_.loop_rate;
+
+  double linear = wheel_r_.cmd - 0.5 * (wheel_r_.cmd - wheel_l_.cmd);
+  double angular = (wheel_r_.cmd - wheel_l_.cmd) / 0.36; // wheel separation
+
+  bool limit = false;
+  if( linear > 0.6 )
+  {
+    linear = 0.6;
+    limit = true;
+  }
+  if( angular > 2.0 )
+  {
+    angular = 2.0;
+    limit = true;
+  }
+  if( limit )
+  {
+    RCLCPP_INFO(rclcpp::get_logger("DiffDriveArduinoHardware"), "write(%.2f %.2f) limited!", linear, angular);
+  }
+  
+  comms_.set_motor_values(linear, angular);
+  //comms_.set_motor_values(motor_l_counts_per_loop, motor_r_counts_per_loop);
   return hardware_interface::return_type::OK;
 }
 

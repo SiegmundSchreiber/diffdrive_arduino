@@ -57,9 +57,17 @@ public:
   std::string send_msg(const std::string &msg_to_send, bool print_output = false)
   {
     serial_conn_.FlushIOBuffers(); // Just in case
-    serial_conn_.Write(msg_to_send);
+
+    // --- SRS ---
+    //serial_conn_.Write(msg_to_send);
+    serial_conn_.Write("AT+M,0.1,0.1\r\n");
 
     std::string response = "";
+
+    // --- SRS ---
+    return response;
+
+
     try
     {
       // Responses end with \r\n so we will read up to (and including) the \n.
@@ -81,11 +89,16 @@ public:
 
   void send_empty_msg()
   {
-    std::string response = send_msg("\r");
+    std::string response = send_msg("\r\n");
   }
 
   void read_encoder_values(int &val_1, int &val_2)
   {
+    // --- SRS ---
+    val_1 = val_1 + 1;
+    val_2 = val_2 + 1;
+    return;
+
     std::string response = send_msg("e\r");
 
     std::string delimiter = " ";
@@ -99,7 +112,10 @@ public:
   void set_motor_values(int val_1, int val_2)
   {
     std::stringstream ss;
-    ss << "m " << val_1 << " " << val_2 << "\r";
+
+    // --- SRS ---
+    //ss << "m " << val_1 << " " << val_2 << "\r";
+    ss << "AT+M,0.1,0.1" << "\r\n";
     send_msg(ss.str());
   }
 

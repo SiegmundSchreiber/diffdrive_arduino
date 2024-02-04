@@ -30,10 +30,32 @@ LibSerial::BaudRate convert_baud_rate(int baud_rate)
   }
 }
 
+class ArduinoMsg
+{
+  public:
+    uint32_t hdr;
+    uint32_t id;
+    uint32_t millis;
+    double batt_voltage;
+    double charger_voltage;
+    double charger_current;
+    double wheel_l_position;
+    double wheel_r_position;
+    uint32_t chksum;
+};
+
 class ArduinoComms
 {
 
 public:
+
+  const uint32_t ARDUINTERFACE_HDR = 0xF0AAAA0F;
+
+  static const int ARDUINTERFACE_CMD_LEN = 8;
+  typedef uint32_t ArdumowerCmd[ARDUINTERFACE_CMD_LEN];
+
+  static const int ARDUINTERFACE_MSG_LEN = 16;
+  typedef uint32_t ArdumowerMsg[ARDUINTERFACE_MSG_LEN];
 
   ArduinoComms() = default;
 
@@ -93,15 +115,68 @@ public:
     std::string response = send_msg("\r\n");
   }
 
-  void read_encoder_values(double &val_1, double &val_2)
+  int read_encoder_values(ArduinoMsg &msg)
   {
     // --- SRS ---
     //val_1 = val_1 + 1;
     //val_2 = val_2 + 1;
     //return;
 
-    std::string response = send_msg("XO\r\n");
+    serial_conn_.FlushIOBuffers(); // Just in case
+    serial_conn_.Write("XS\r");
 
+    unsigned char buf[ARDUINTERFACE_MSG_LEN * 4];
+
+    try
+    {
+      // Responses end with \r\n so we will read up to (and including) the \n.
+      do{
+        serial_conn_.ReadByte(buf[0], timeout_ms_);
+      } while (buf[0] != 0x0F);
+
+      for( int i=1; i<(ARDUINTERFACE_MSG_LEN * 4); i++)
+      {
+        serial_conn_.ReadByte( buf[i], timeout_ms_);
+      }
+
+    }
+    catch (const LibSerial::ReadTimeout&)
+    {
+        std::cerr << "The ReadByte() call has timed out." << std::endl ;
+    }
+
+    uint8_t chksum1 = 0;
+    uint8_t chksum2 = 0;
+
+    // Fletcher-16 Checksum
+    for (int i=0; i<(ARDUINTERFACE_MSG_LEN)*4-2; i++ )
+    {
+      chksum1 = (chksum1 + buf[i]) & 0xFF;
+      chksum2 = (chksum2 + chksum1) & 0xFF;
+    }
+
+    // chksum is stored just for debug analysis:
+    // bit32..16 checksum of message
+    // bit15..0  checksum calculated
+    msg.chksum = (*((uint32_t*)(&buf[15*4]))) & 0xFFFF0000;
+    msg.chksum |= chksum1 << 8; // second last byte
+    msg.chksum |= chksum2 << 0; // last byte
+    if( (chksum1 != buf[(ARDUINTERFACE_MSG_LEN)*4-2]) || (chksum2 != buf[(ARDUINTERFACE_MSG_LEN)*4-1]))
+    {
+        return -1;
+    }
+
+    msg.hdr              = *((uint32_t*)(&buf[0*4]));
+    msg.id               = *((uint32_t*)(&buf[1*4]));
+    msg.millis           = *((uint32_t*)(&buf[2*4]));
+
+    msg.batt_voltage     = *((float*)(&buf[4*4]));
+    msg.charger_voltage  = *((float*)(&buf[5*4]));
+    msg.charger_current  = *((float*)(&buf[6*4]));
+    msg.wheel_l_position = *((float*)(&buf[7*4]));
+    msg.wheel_r_position = *((float*)(&buf[8*4]));
+
+    /*
     std::string delimiter = " ";
     size_t start = 0;
     size_t end = response.find_first_of(delimiter, start);
@@ -118,21 +193,12 @@ public:
     start = end + delimiter.length();
     end = response.find_first_of(delimiter, start);
     std::string token_5 = response.substr(start, end-start);
-
-    /*
-    std::string delimiter = " ";
-    size_t del_pos = response.find(delimiter);
-    std::string token_1 = response.substr(0, del_pos);
-
-    std::string token_2 = response.substr(del_pos + delimiter.length());
-    std::string token_3 = response.substr(del_pos + delimiter.length());
-    std::string token_4 = response.substr(del_pos + delimiter.length());
-    std::string token_5 = response.substr(del_pos + delimiter.length());
-    */
-
     val_1 = std::atof(token_2.c_str());
     val_2 = std::atof(token_4.c_str());
+    */
+    return 0;
   }
+
   void set_motor_values(float val_1, float val_2)
   {
     std::stringstream ss;

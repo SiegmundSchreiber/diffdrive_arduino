@@ -204,23 +204,32 @@ hardware_interface::return_type DiffDriveArduinoHardware::read(
     return hardware_interface::return_type::ERROR;
   }
 
-  double l_pos;
-  double r_pos;
-  comms_.read_encoder_values(l_pos, r_pos);
+  ArduinoMsg msg;
+  int result = comms_.read_encoder_values(msg);
 
-  RCLCPP_INFO(rclcpp::get_logger("DiffDriveArduinoHardware"), "read(%.2f %.2f)", l_pos, r_pos);
+  if( result == 0)
+  {
 
-  double delta_seconds = period.seconds();
+    RCLCPP_INFO(rclcpp::get_logger("DiffDriveArduinoHardware"), "read(%.1fV %.2f %.2f)", msg.batt_voltage, msg.wheel_l_position, msg.wheel_r_position);
+    //RCLCPP_INFO(rclcpp::get_logger("DiffDriveArduinoHardware"), "read(%08x %08x %08x)", m1, m2, m3);
 
-  //double pos_prev = wheel_l_.pos;
-  //wheel_l_.pos = wheel_l_.calc_enc_angle();
-  wheel_l_.vel = (l_pos - wheel_l_.pos) / delta_seconds;
-  wheel_l_.pos = l_pos;
+    double delta_seconds = period.seconds();
 
-  //pos_prev = wheel_r_.pos;
-  //wheel_r_.pos = wheel_r_.calc_enc_angle();
-  wheel_r_.vel = (r_pos - wheel_r_.pos) / delta_seconds;
-  wheel_r_.pos = r_pos;
+    //double pos_prev = wheel_l_.pos;
+    //wheel_l_.pos = wheel_l_.calc_enc_angle();
+    wheel_l_.vel = (msg.wheel_l_position - wheel_l_.pos) / delta_seconds;
+    wheel_l_.pos = msg.wheel_l_position;
+
+    //pos_prev = wheel_r_.pos;
+    //wheel_r_.pos = wheel_r_.calc_enc_angle();
+    wheel_r_.vel = (msg.wheel_r_position - wheel_r_.pos) / delta_seconds;
+    wheel_r_.pos = msg.wheel_r_position;
+
+  }
+  else
+  {
+    RCLCPP_WARN(rclcpp::get_logger("DiffDriveArduinoHardware"), "read(%08x): CRC Error!", msg.chksum);
+  }
 
   return hardware_interface::return_type::OK;
 }
